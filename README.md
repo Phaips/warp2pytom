@@ -20,8 +20,6 @@ Two submission modes are available:
 
 ## Usage
 
-> One of `--particle-diameter` or `--angular-search` is **required** (mutually exclusive).
-
 ```bash
 ./warp2pytom.py \
   -i /path/to/warp/tiltseries \  # required: dir with Position_*.xml and reconstruction/
@@ -42,10 +40,13 @@ Two submission modes are available:
   --rng-seed 69 \                # default: 69
   [--dry-run]                    # optional
 ```
+
 Written by default:
 `--amplitude-contrast` 0.07
 `--spherical-aberration` 2.7
 `--voltage` 300
+
+> One of `--particle-diameter` or `--angular-search` is **required** (mutually exclusive).
 
 ## Flag Summary
 
