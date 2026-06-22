@@ -121,16 +121,10 @@ def belongs_to_other(stem: str, prefix: str, prefixes) -> bool:
 
 
 def find_tomogram(recon: Path, prefix: str, prefixes) -> Path:
-    exact = recon / f"{prefix}.mrc"
+    exact = recon / f"{prefix}_9.68Apx.mrc"
     if exact.is_file():
         return exact
-    vol = recon / f"{prefix}_Vol.mrc"
-    if vol.is_file():
-        return vol
-    hits = [p for p in sorted(recon.glob(f"{prefix}_*.mrc")) if not belongs_to_other(p.stem, prefix, prefixes)]
-    if not hits:
-        raise FileNotFoundError(f"Could not find tomogram for {prefix} in {recon}")
-    return hits[0]
+    raise FileNotFoundError(f"Could not find exact tomogram for {prefix}: {exact}")
 
 
 def write_list(path: Path, values):
