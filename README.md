@@ -1,65 +1,26 @@
-# Engel Warp Pipeline
+# [Engel lab](https://www.cellarchlab.com/) Warp Pipeline
 
-A compact workflow connecting [Warp/M and WarpTools](https://github.com/warpem/warp), [Miss-Alignment](https://github.com/warpem/miss-alignment), [PyTom Match Pick](https://github.com/SBC-Utrecht/pytom-match-pick), and [IsoNet2](https://github.com/IsoNet-cryoET/IsoNet).
+A compact workflow connecting [Warp/M](https://github.com/warpem/warp), [Miss-Alignment](https://github.com/warpem/miss-alignment), [pytom-match-pick](https://github.com/SBC-Utrecht/pytom-match-pick), and [IsoNet2](https://github.com/IsoNet-cryoET/IsoNet).
 
 ## Pipeline overview
 
-1. **`submit_warp.sh`** processes raw tilt-series data in Warp/M, performs initial IMOD or AreTomo alignment, runs Miss-Alignment, and reconstructs the final tomograms in `warp_tiltseries_<RUN_NAME>/reconstruction_miss/`.
-2. **`warp2pytom.py`** generates and submits PyTom Match Pick jobs from the Warp XML metadata. The Warp script also creates `reconstruction -> reconstruction_miss`, so the existing `warp2pytom.py` reconstruction lookup works unchanged.
-3. **`submit_export_particles.sh`** merges PyTom particle STAR files, normalizes their tomogram identifiers for WarpTools, exports particles, and merges the resulting metadata across datasets.
-4. **`submit_isonet2.sh`** trains and applies IsoNet2 using the post-Miss-Alignment odd/even half tomograms, tilt limits, Warp XML defocus values, and user-supplied masks.
+1. **`submit_warp.sh`** processes raw tilt-series data in Warp, performs initial IMOD or AreTomo alignment, runs Miss-Alignment, and reconstructs the final tomograms in `warp_tiltseries_<RUN_NAME>/reconstruction_miss/`.
+2. **`warp2pytom.py`** generates and submits pytom-match-pick jobs from the Warp XML metadata in batch!
+3. **`submit_export_particles.sh`** merges pytom particle STAR files, normalizes their tomogram identifiers for WarpTools, exports particles, and merges the resulting metadata across datasets for [RELION5](https://github.com/3dem/relion/tree/ver5.0).
+4. **`submit_isonet2.sh`** trains and applies IsoNet2 using the post-Miss-Alignment odd/even half tomograms, tilt angles, Warp XML defocus values, and user-supplied masks.
 
 ## `submit_warp.sh`: Warp/M and Miss-Alignment
 
-Edit the user-settings block and submit with:
+Edit the header block and submit with:
 
 ```bash
 sbatch submit_warp.sh
 ```
 
-The script runs frame motion/CTF estimation, tilt-series import and alignment, tilt-series CTF estimation, a QC reconstruction, Miss-Alignment, and a final post-Miss-Alignment reconstruction. Existing reconstruction folders are moved to timestamped backups rather than deleted.
-
-Main outputs:
-
-```text
-warp_tiltseries_<RUN_NAME>/
-├── reconstruction_etomo/ or reconstruction_aretomo/
-├── reconstruction_miss/
-│   ├── odd/
-│   └── even/
-└── reconstruction -> reconstruction_miss
-```
-
-## `submit_export_particles.sh`: Warp particle export
-
-Set one entry per dataset in `DATASET_TAGS`, `PYTOM_DIRS`, and `WARP_SETTINGS`. Each PyTom directory is expected to contain particle STAR files under `<PYTOM_DIR>/*/*.star`, as produced after candidate extraction from the default `warp2pytom.py` submission structure.
-
-- `EXPORT_DIM="2d"` exports per-tilt particle series and writes merged RELION `--tomo` particle, tomogram, and optimisation-set STAR files.
-- `EXPORT_DIM="3d"` exports subtomograms and writes one merged conventional RELION particle STAR file.
-
-The input STAR files must contain `rlnCoordinateX/Y/Z`, `rlnMicrographName`, and the PyTom angle/score columns retained by the script. `COORDS_ANGPIX` is the coordinate pixel size; `OUTPUT_ANGPIX` is the requested particle pixel size; `DIAMETER_ANGSTROM` is in Å.
-
-```bash
-sbatch submit_export_particles.sh
-```
-
-The merge step requires Python with `pandas` and `starfile`, normally available in the PyTom Match Pick environment.
-
-## `submit_isonet2.sh`: IsoNet2 denoising
-
-Edit the paths to the Warp tilt-series folder, corresponding tomostar folder, and mask folder, then submit:
-
-```bash
-sbatch submit_isonet2.sh
-```
-
-The script reads odd/even half tomograms from `reconstruction_miss/`, determines the dataset-wide tilt range from the available `.tlt` files, reads the global defocus from each Warp XML and converts it from µm to Å, then runs IsoNet2 `prepare_star`, `refine`, and `predict`. Masks should be named `<prefix>.mrc` or `<prefix>_Vol_bmask.mrc`. Each run uses a new output directory and does not delete existing data.
-
----
 
 # Batch Submission of `pytom-match-pick` from WarpM
 
-This script automates batch submission of [pytom-match-pick](https://github.com/SBC-Utrecht/pytom-match-pick) jobs on an HPC cluster (SLURM) by reading metadata directly from **[Warp](https://github.com/warpem/warp)** tilt-series XMLs. It:
+This script automates batch submission of pytom-match-pick jobs on an HPC cluster (SLURM) by reading metadata directly from Warp tilt-series XMLs. It:
 
 - Extracts **tilt angles** from `<Angles>` in each `Position_*.xml` (sign-flipped to the pytom convention)
 - Reads **per-tilt defocus** (μm) from the `<GridCTF>`
@@ -75,7 +36,6 @@ Two submission modes are available:
 - **`array`** (default): a single SLURM **array job** (`submit_array.sh`) over all tomograms
 - **`per-tomo`**: one standalone `submit_<prefix>.sh` per tomogram
 
----
 
 ## Usage
 
@@ -107,72 +67,6 @@ Written by default:
 
 > One of `--particle-diameter` or `--angular-search` is **required** (mutually exclusive).
 
-## Flag Summary
-
-### Core flags
-| Flag                          | Description                                          | Default        |
-|-------------------------------|------------------------------------------------------|----------------|
-| `-i, --warp-dir`              | Warp dir with `Position_*.xml` and `reconstruction/` | —              |
-| `-t, --template`              | Template MRC for matching                            | —              |
-| `-m, --mask`                  | Mask MRC for matching                                | —              |
-| `-g, --gpu-ids`               | GPU IDs (e.g. `0` or `0 1`)                          | —              |
-| `--voxel-size-angstrom`       | Voxel size in Å                                      | —              |
-| `--particle-diameter`         | Particle diameter in Å (Crowther sampling)           | one of these   |
-| `--angular-search`            | Angular search (float max or `.txt`)                 | is required    |
-| `-d, --output-dir`            | Top-level folder for outputs                         | `submission`   |
-| `--mode`                      | `array` (one array job) or `per-tomo`                | `array`        |
-| `--pattern`                   | XML glob inside `--warp-dir`                          | `Position*.xml`|
-| `--dose`                      | Fallback per-tilt dose (e‑/Å²) if XML has no `<Dose>`| none           |
-| `--include` / `--exclude`     | Wildcard patterns for prefix filtering               | all / none     |
-| `--dry-run`                   | Generate scripts without submitting                  | off            |
-
-### Matching / input options
-| Flag                           | Description                                      | Default     |
-|--------------------------------|--------------------------------------------------|-------------|
-| `-s, --volume-split`           | Split volume into X Y Z blocks                   | none        |
-| `--search-x START END`         | Search range along x-axis                        | none        |
-| `--search-y START END`         | Search range along y-axis                        | none        |
-| `--search-z START END`         | Search range along z-axis                        | none        |
-| `--z-axis-rotational-symmetry` | Z‑axis symmetry (integer)                        | none        |
-| `--non-spherical-mask`         | Enable non-spherical mask support               | off         |
-| `--bmask-dir`                  | Tomogram-mask dir with `<prefix>.mrc` files      | none        |
-| `--tomogram-ctf-model`         | CTF model (`phase-flip`)                         | none        |
-| `-r, --random-phase-correction`| STOPGAP-style random-phase correction            | off         |
-| `--half-precision`             | Use float16 output                               | off         |
-| `--rng-seed`                   | RNG seed for phase correction                    | `69`        |
-| `--per-tilt-weighting`         | Enable per-tilt CTF weighting                    | off         |
-| `--low-pass LOW_PASS`          | Low-pass filter cutoff in Å                      | none        |
-| `--high-pass HIGH_PASS`        | High-pass filter cutoff in Å                     | none        |
-| `--phase-shift PHASE_SHIFT`    | Phase shift in degrees (only written if > 0)     | none        |
-| `--defocus-handedness`         | Defocus gradient handedness (`-1,0,1`)           | none        |
-| `--spectral-whitening`         | Enable spectral whitening                        | off         |
-| `--log {info,debug}`           | pytom logging verbosity                          | none        |
-
-### Written by default!
-| Flag                          | Description                                      | Default     |
-|-------------------------------|--------------------------------------------------|-------------|
-| `--amplitude-contrast`        | Amplitude contrast fraction                      | `0.07`      |
-| `--spherical-aberration`      | Spherical aberration (mm)                        | `2.7`       |
-| `--voltage`                   | Voltage (kV)                                     | `300`       |
-
-### SLURM Settings
-| Flag                          | Description                                      | Default     |
-|-------------------------------|--------------------------------------------------|-------------|
-| `--partition`                 | SLURM partition                                  | `emgpu`     |
-| `--ntasks`                    | SLURM ntasks                                     | `1`         |
-| `--nodes`                     | SLURM nodes                                      | `1`         |
-| `--ntasks-per-node`           | SLURM tasks per node                             | `1`         |
-| `--cpus-per-task`             | SLURM CPUs per task                              | `4`         |
-| `--gres`                      | SLURM GPU resource (e.g. `gpu:1`)                | `gpu:1`     |
-| `--mem`                       | SLURM memory (GB)                                | `128`       |
-| `--qos`                       | SLURM Quality of Service                         | `emgpu`     |
-| `--time`                      | SLURM time limit                                 | `05:00:00`  |
-| `--mail-type`                 | SLURM mail notifications                         | `none`      |
-| `--array-max-parallel`        | Cap concurrently running array tasks (`%N`)      | none        |
-| `--exclude-nodes`             | Nodes to exclude (`#SBATCH --exclude`)           | none        |
-| `--include-nodes`             | Nodes to require (`#SBATCH --nodelist`)          | none        |
-
----
 
 ## Example Output
 
@@ -260,18 +154,33 @@ pytom_match_template.py \
   ${TOMO_MASK_ARGS}
 ```
 
-The per-tilt metadata files written into each folder look like:
 
+
+## `submit_export_particles.sh`: Warp particle export
+
+Set one entry per dataset in `DATASET_TAGS`, `PYTOM_DIRS`, and `WARP_SETTINGS`. Each PyTom directory is expected to contain particle STAR files under `<PYTOM_DIR>/*/*.star`, as produced after candidate extraction from the default `warp2pytom.py` submission structure.
+
+- `EXPORT_DIM="2d"` exports per-tilt particle series and writes merged RELION5 `--tomo` particle, tomogram, and optimisation-set STAR files.
+- `EXPORT_DIM="3d"` exports subtomograms and writes one merged conventional RELION particle STAR file.
+
+The input STAR files must contain `rlnCoordinateX/Y/Z`, `rlnMicrographName`. `COORDS_ANGPIX` is the coordinate pixel size; `OUTPUT_ANGPIX` is the requested particle pixel size; `DIAMETER_ANGSTROM` is in Å.
+
+```bash
+sbatch submit_export_particles.sh
 ```
-# Position_1.tlt            # Position_1_defocus.txt   # Position_1_exposure.txt
-3.0                         4.21                       0.0
--0.0                        4.18                       3.0
--3.0                        4.25                       6.0
+
+The merge step requires Python with `pandas` and `starfile`, normally available in the pytom-match-pick environment.
+
+## `submit_isonet2.sh`: IsoNet2 denoising
+
+Edit the paths to the Warp tilt-series folder, corresponding tomostar folder, and mask folder, then submit:
+
+```bash
+sbatch submit_isonet2.sh
 ```
 
-## Full Help Output
+The script reads odd/even half tomograms from `reconstruction_miss/`, determines the dataset-wide tilt range from the available `.tlt` files, reads the global defocus from each Warp XML and converts it from µm to Å, then runs IsoNet2 `prepare_star`, `refine`, and `predict`. Masks should be named `<prefix>.mrc` or `<prefix>_Vol_bmask.mrc`.
 
-Run `./warp2pytom.py -h` to see all flags and defaults. Feel free to open an issue or submit a PR for further customization!
 
 ## License
 
