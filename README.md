@@ -88,7 +88,7 @@ pytom_extract_candidates.py -j submission/*/*.json -n 5000 --particle-diameter 2
 ```
 then you have *_particles.star files in your submission/ folder and can now proceed with running the subtomo extraction in warp using `submit_export_particles.sh`
 
-Set one entry per dataset in `DATASET_TAGS`, `PYTOM_DIRS`, and `WARP_SETTINGS`. Each PyTom directory is expected to contain particle STAR files under `<PYTOM_DIR>/*/*.star`, as produced after candidate extraction from the default `warp2pytom.py` submission structure.
+Set one entry per dataset in `DATASET_TAGS`, `PYTOM_DIRS`, and `WARP_SETTINGS`. Each pytom directory is expected to contain particle STAR files under `<PYTOM_DIR>/*/*.star`, as produced after candidate extraction from the default `warp2pytom.py` submission structure.
 
 | `EXPORT_DIM` | Output |
 |---|---|
