@@ -12,6 +12,7 @@
 #SBATCH -D ./
 
 set -eo pipefail
+shopt -s nullglob
 
 # =============================================================================
 # USER SETTINGS
